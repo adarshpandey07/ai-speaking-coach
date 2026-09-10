@@ -123,6 +123,43 @@ ever sees one origin.
 
 ---
 
+## Verifying it works
+
+`scripts/e2e_check.py` drives the whole stack the way the browser does: it
+synthesises a child's voice, streams it over the WebSocket in chunks, and
+asserts on what comes back. It covers the three things that are easy to break
+and impossible to eyeball.
+
+```bash
+# with the backend already running on 8010
+python scripts/e2e_check.py
+```
+
+| Check | Asserts |
+| --- | --- |
+| Day-one baseline | A student with no baseline gets a baseline session, and a `BaselineAssessment` row is persisted afterwards |
+| Reconnect-and-resume | After an abrupt socket close mid-session, reopening the same session id returns `resumed: true` at the same turn index, and the next turn continues rather than restarting |
+| Fallback handler | Unusable audio produces `fallback: true` and never reaches the LLM |
+
+It exits non-zero on the first failed assertion, and creates a throwaway
+`TestKid-xxxxxx` student each run.
+
+### Bringing the stack back up
+
+The three pieces are independent. If you have stopped them:
+
+```bash
+docker start speaking-coach-pg              # data persists across stop/start
+uvicorn app.main:app --reload --port 8010   # from the repo root, venv active
+cd frontend && npm run dev                  # http://localhost:5173
+```
+
+The backend keeps ~300 MB resident once the Whisper model is loaded. On a
+machine that is already deep into swap the OS may kill it at startup — free
+memory first rather than retrying.
+
+---
+
 ## Configuration
 
 All of it lives in `.env` (see `.env.example`). One provider, one model — there
